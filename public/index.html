@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pagamento com Cartão de Crédito - Pagsmile</title>
+  <script src="https://res.pagsmile.com/lib/js/pagsmile.min.js"></script>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="payment-container">
+    <h1>Pagamento com Cartão de Crédito</h1>
+
+    <form id="payment-form">
+      <section class="form-section">
+        <h2>Dados do Cliente</h2>
+
+        <div class="form-group">
+          <label for="customer-name">Nome Completo</label>
+          <input type="text" id="customer-name" name="name" required minlength="3" placeholder="João Silva">
+        </div>
+
+        <div class="form-group">
+          <label for="customer-email">E-mail</label>
+          <input type="email" id="customer-email" name="email" required placeholder="joao@email.com">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="customer-cpf">CPF</label>
+            <input type="text" id="customer-cpf" name="cpf" required maxlength="11" pattern="\d{11}" placeholder="12345678900">
+          </div>
+
+          <div class="form-group">
+            <label for="customer-phone">Telefone</label>
+            <input type="text" id="customer-phone" name="phone" required minlength="10" placeholder="11999999999">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="customer-zipcode">CEP</label>
+            <input type="text" id="customer-zipcode" name="zipCode" required maxlength="8" pattern="\d{8}" placeholder="01310100">
+          </div>
+
+          <div class="form-group">
+            <label for="customer-state">Estado</label>
+            <input type="text" id="customer-state" name="state" required maxlength="2" placeholder="SP">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="customer-city">Cidade</label>
+          <input type="text" id="customer-city" name="city" required placeholder="São Paulo">
+        </div>
+
+        <div class="form-group">
+          <label for="customer-address">Endereço</label>
+          <input type="text" id="customer-address" name="address" required minlength="5" placeholder="Avenida Paulista, 1000">
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Dados do Pagamento</h2>
+
+        <div class="form-group">
+          <label for="amount">Valor (R$)</label>
+          <input type="text" id="amount" name="amount" required pattern="\d+(\.\d{2})?" placeholder="100.00">
+        </div>
+
+        <div class="form-group">
+          <label for="installments">Parcelas</label>
+          <select id="installments" name="installments">
+            <option value="1">1x sem juros</option>
+            <option value="2">2x sem juros</option>
+            <option value="3">3x sem juros</option>
+            <option value="4">4x sem juros</option>
+            <option value="5">5x sem juros</option>
+            <option value="6">6x sem juros</option>
+            <option value="12">12x sem juros</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="form-section">
+        <h2>Dados do Cartão</h2>
+
+        <div class="form-group">
+          <label for="card-name">Nome no Cartão</label>
+          <input type="text" id="card-name" required placeholder="JOAO SILVA">
+        </div>
+
+        <div class="form-group">
+          <label for="card-number">Número do Cartão</label>
+          <input type="text" id="card-number" required maxlength="19" placeholder="4111 1111 1111 1111">
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="exp-month">Mês</label>
+            <input type="text" id="exp-month" required maxlength="2" placeholder="12">
+          </div>
+
+          <div class="form-group">
+            <label for="exp-year">Ano</label>
+            <input type="text" id="exp-year" required maxlength="4" placeholder="2025">
+          </div>
+
+          <div class="form-group">
+            <label for="card-cvv">CVV</label>
+            <input type="text" id="card-cvv" required maxlength="4" placeholder="123">
+          </div>
+        </div>
+      </section>
+
+      <button type="submit" id="submit-btn" class="submit-button">
+        Pagar
+      </button>
+    </form>
+
+    <div id="payment-status" class="payment-status hidden">
+      <div id="status-icon"></div>
+      <p id="status-message"></p>
+    </div>
+
+    <div id="loading" class="loading hidden">
+      <div class="spinner"></div>
+      <p>Processando pagamento...</p>
+    </div>
+  </main>
+
+  <script type="module" src="./payment.ts"></script>
+  <script src="https://res.pagsmile.com/lib/js/pagsmile.min.js"></script>
+</body>
+</html>
