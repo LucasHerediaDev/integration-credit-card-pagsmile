@@ -1,46 +1,46 @@
-# Integração Pagsmile
+# Pagsmile Integration
 
-Documentação técnica da integração com gateway Pagsmile para pagamentos com cartão de crédito.
+Technical documentation for Pagsmile gateway integration for credit card payments.
 
-## Setup Inicial
+## Initial Setup
 
-### Credenciais
+### Credentials
 
-Adicione no `.env`:
+Add to `.env`:
 
 ```bash
-PAGSMILE_APP_ID=seu_app_id
-PAGSMILE_SECURITY_KEY=sua_security_key
-PAGSMILE_PUBLIC_KEY=sua_public_key
+PAGSMILE_APP_ID=your_app_id
+PAGSMILE_SECURITY_KEY=your_security_key
+PAGSMILE_PUBLIC_KEY=your_public_key
 PAGSMILE_ENVIRONMENT=sandbox
-PAGSMILE_NOTIFY_URL=https://seudominio.com/api/webhook/payment
-PAGSMILE_RETURN_URL=https://seudominio.com/success
+PAGSMILE_NOTIFY_URL=https://yourdomain.com/api/webhook/payment
+PAGSMILE_RETURN_URL=https://yourdomain.com/success
 ```
 
-**Atenção:** `SECURITY_KEY` nunca vai pro frontend.
+**Warning:** `SECURITY_KEY` never goes to frontend.
 
-## Arquitetura
+## Architecture
 
-### Endpoints Backend
+### Backend Endpoints
 
 ```
-GET  /api/config                        # Config pública (frontend)
-POST /api/create-order                  # Cria pedido
-GET  /api/query-transaction/:tradeNo    # Consulta status
-POST /api/webhook/payment               # Recebe webhooks
+GET  /api/config                        # Public config (frontend)
+POST /api/create-order                  # Create order
+GET  /api/query-transaction/:tradeNo    # Query status
+POST /api/webhook/payment               # Receive webhooks
 ```
 
 ### Auth
 
-API usa Basic Auth:
+API uses Basic Auth:
 
 ```
 Authorization: Basic base64(app_id:security_key)
 ```
 
-## Fluxo de Pagamento
+## Payment Flow
 
-### 1. Criar Pedido
+### 1. Create Order
 
 **Request:**
 
@@ -51,8 +51,8 @@ Content-Type: application/json
 {
   "amount": "100.00",
   "customerInfo": {
-    "name": "João Silva",
-    "email": "joao@example.com",
+    "name": "John Doe",
+    "email": "john@example.com",
     "cpf": "12345678901",
     "phone": "11987654321",
     "zipCode": "01310100",
@@ -80,9 +80,9 @@ Content-Type: application/json
 }
 ```
 
-Guarda o `prepay_id` - vai precisar dele no frontend.
+Save the `prepay_id` - you'll need it on frontend.
 
-### 2. Inicializar SDK (Frontend)
+### 2. Initialize SDK (Frontend)
 
 ```typescript
 const client = await Pagsmile.setPublishableKey({
@@ -101,14 +101,14 @@ const client = await Pagsmile.setPublishableKey({
 });
 ```
 
-SDK cria inputs seguros pro cartão. Dados nunca passam pelo seu backend.
+SDK creates secure inputs for card. Data never goes through your backend.
 
-### 3. Submeter Pagamento
+### 3. Submit Payment
 
 ```typescript
 const result = await client.createOrder({
   phone: "11987654321",
-  email: "joao@example.com",
+  email: "john@example.com",
   postal_code: "01310100",
   payer_id: "12345678901",
   installments: { stage: 1 },
@@ -124,9 +124,9 @@ const result = await client.createOrder({
 // result: { status: "success", query: true }
 ```
 
-### 4. Consultar Status
+### 4. Query Status
 
-Pagamento é assíncrono. Implementa polling:
+Payment is async. Implement polling:
 
 ```typescript
 const checkStatus = async (tradeNo) => {
@@ -134,18 +134,18 @@ const checkStatus = async (tradeNo) => {
   return res.json();
 };
 
-// Poll a cada 2s por até 30s
+// Poll every 2s for up to 30s
 const maxAttempts = 15;
 for (let i = 0; i < maxAttempts; i++) {
   const status = await checkStatus(tradeNo);
   
   if (status.trade_status === "SUCCESS") {
-    // Aprovado
+    // Approved
     break;
   }
   
   if (status.trade_status === "FAILED") {
-    // Recusado
+    // Declined
     break;
   }
   
@@ -153,16 +153,16 @@ for (let i = 0; i < maxAttempts; i++) {
 }
 ```
 
-**Status possíveis:**
+**Possible statuses:**
 
-- `PENDING` - processando
-- `SUCCESS` - aprovado
-- `FAILED` - recusado
-- `CANCELLED` - cancelado
+- `PENDING` - processing
+- `SUCCESS` - approved
+- `FAILED` - declined
+- `CANCELLED` - cancelled
 
 ## Webhooks
 
-Pagsmile envia notificação POST quando status muda:
+Pagsmile sends POST notification when status changes:
 
 ```json
 {
@@ -176,18 +176,18 @@ Pagsmile envia notificação POST quando status muda:
 }
 ```
 
-**Seu endpoint deve:**
+**Your endpoint must:**
 
-1. Validar payload
-2. Processar baseado no `trade_status`
-3. Retornar `{ "result": "success" }`
-4. Implementar idempotência (mesmo webhook pode chegar múltiplas vezes)
+1. Validate payload
+2. Process based on `trade_status`
+3. Return `{ "result": "success" }`
+4. Implement idempotency (same webhook may arrive multiple times)
 
-Webhook é a fonte da verdade. Usa ele pra confirmar pagamento, não só o polling.
+Webhook is the source of truth. Use it to confirm payment, not just polling.
 
 ## Device Fingerprint
 
-Sempre coleta dados do navegador pra antifraude:
+Always collect browser data for fraud prevention:
 
 ```javascript
 {
@@ -200,20 +200,20 @@ Sempre coleta dados do navegador pra antifraude:
 }
 ```
 
-## Segurança
+## Security
 
-### Nunca expor:
+### Never expose:
 
 - `PAGSMILE_SECURITY_KEY`
-- Dados do cartão
+- Card data
 
-### Pode expor:
+### Safe to expose:
 
 - `PAGSMILE_APP_ID`
 - `PAGSMILE_PUBLIC_KEY`
-- `prepay_id` (específico de cada pedido)
+- `prepay_id` (order specific)
 
-## Diagrama de Sequência
+## Sequence Diagram
 
 ```
 Frontend          Backend           Pagsmile
@@ -243,41 +243,41 @@ Frontend          Backend           Pagsmile
 
 ## Checklist
 
-- [ ] Configurar variáveis de ambiente
-- [ ] Implementar endpoints backend
-- [ ] Integrar SDK no frontend
-- [ ] Implementar polling de status
-- [ ] Configurar endpoint de webhook
-- [ ] Testar em sandbox
-- [ ] Validar recebimento de webhooks
-- [ ] Logs e error handling
-- [ ] Deploy em produção
+- [ ] Configure environment variables
+- [ ] Implement backend endpoints
+- [ ] Integrate SDK on frontend
+- [ ] Implement status polling
+- [ ] Configure webhook endpoint
+- [ ] Test in sandbox
+- [ ] Validate webhook reception
+- [ ] Logs and error handling
+- [ ] Deploy to production
 
-## Ambientes
+## Environments
 
 **Sandbox:**
 - Dashboard: https://sandbox.pagsmile.com
-- Testar sem cobrar cartão real
+- Test without charging real cards
 
-**Produção:**
+**Production:**
 - Dashboard: https://dashboard.pagsmile.com
-- Mudar `PAGSMILE_ENVIRONMENT=prod`
+- Set `PAGSMILE_ENVIRONMENT=prod`
 
 ## Troubleshooting
 
-**Webhook não chega:**
-- Verifica se URL é acessível publicamente
-- Testa com ngrok/localtunnel no dev
-- Checa logs no dashboard Pagsmile
+**Webhook not arriving:**
+- Verify URL is publicly accessible
+- Test with ngrok/localtunnel in dev
+- Check logs in Pagsmile dashboard
 
-**Status fica PENDING:**
-- Cartão de teste pode demorar
-- Timeout no polling pode ser curto demais
-- Usa webhook como fallback
+**Status stuck on PENDING:**
+- Test card may take time
+- Polling timeout might be too short
+- Use webhook as fallback
 
-**Erro de autenticação:**
-- Confere se app_id e security_key estão corretos
-- Base64 do Basic Auth tem que incluir os dois separados por `:`
+**Authentication error:**
+- Check if app_id and security_key are correct
+- Basic Auth base64 must include both separated by `:`
 
 ## Docs
 
