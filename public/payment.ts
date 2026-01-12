@@ -127,14 +127,20 @@ const fetchSdkConfig = async (): Promise<SdkConfig> => {
   return response.json() as Promise<SdkConfig>;
 };
 
-const getDeviceInfo = () => ({
-  userAgent: navigator.userAgent,
-  browserLanguage: navigator.language,
-  browserColorDepth: screen.colorDepth.toString(),
-  browserScreenHeight: screen.height.toString(),
-  browserScreenWidth: screen.width.toString(),
-  browserTimeZone: new Date().getTimezoneOffset().toString(),
-});
+const getDeviceInfo = () => {
+  // O timezone deve ser em minutos e positivo (não negativo)
+  // getTimezoneOffset() retorna negativo, então usamos Math.abs()
+  const timezoneOffset = Math.abs(new Date().getTimezoneOffset());
+  
+  return {
+    userAgent: navigator.userAgent,
+    browserLanguage: navigator.language || navigator.languages?.[0] || "pt-BR",
+    browserColorDepth: screen.colorDepth.toString(),
+    browserScreenHeight: screen.height.toString(),
+    browserScreenWidth: screen.width.toString(),
+    browserTimeZone: timezoneOffset.toString(), // Formato positivo em minutos
+  };
+};
 
 const createBackendOrder = async (
   amount: string,

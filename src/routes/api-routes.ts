@@ -49,18 +49,30 @@ export const createApiRoutes = (deps: ApiDependencies) => {
     try {
       const input = (await request.json()) as CreatePaymentInput;
       
-      // Captura o IP do cliente
-      const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() 
-        || request.headers.get("x-real-ip")
-        || "unknown";
+      // Captura o IP do cliente de múltiplas fontes
+      const forwardedFor = request.headers.get("x-forwarded-for");
+      const realIp = request.headers.get("x-real-ip");
+      const cfConnectingIp = request.headers.get("cf-connecting-ip"); // Cloudflare
       
-      // Adiciona o IP ao input se não foi fornecido
-      if (!input.ipAddress && ipAddress !== "unknown") {
+      let ipAddress = "unknown";
+      
+      if (forwardedFor) {
+        // Pega o primeiro IP da lista (pode ter múltiplos em caso de proxies)
+        ipAddress = forwardedFor.split(",")[0]?.trim() || "unknown";
+      } else if (realIp) {
+        ipAddress = realIp.trim();
+      } else if (cfConnectingIp) {
+        ipAddress = cfConnectingIp.trim();
+      }
+      
+      // Adiciona o IP ao input se não foi fornecido e se é válido
+      if (!input.ipAddress && ipAddress !== "unknown" && ipAddress !== "") {
         input.ipAddress = ipAddress;
       }
       
       console.log("📦 Dados recebidos:", JSON.stringify(input, null, 2));
-      console.log("🌐 IP do cliente:", ipAddress);
+      console.log("🌐 IP do cliente capturado:", ipAddress);
+      console.log("🌐 IP final no input:", input.ipAddress || "não fornecido");
 
       if (!input.amount || !input.customerInfo) {
         console.log("❌ Validação falhou: Campos obrigatórios ausentes");

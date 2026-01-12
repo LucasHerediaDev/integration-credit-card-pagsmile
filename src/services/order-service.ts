@@ -3,6 +3,7 @@ import type {
   CreateOrderResponse,
   CreatePaymentInput,
   CustomerInfo,
+  DeviceInfo,
   PagsmileConfig,
 } from "../types/pagsmile.ts";
 import type { PagsmileHttpClient } from "./pagsmile-client.ts";
@@ -89,36 +90,50 @@ const buildOrderRequest = (
 
   // Adiciona device_info se userAgent estiver presente
   if (userAgent) {
-    request.device_info = {
+    // Garante que IP está presente e válido
+    const finalIpAddress = ipAddress && ipAddress !== "unknown" && ipAddress.trim() !== "" 
+      ? ipAddress.trim() 
+      : undefined;
+    
+    if (!finalIpAddress) {
+      console.log("⚠️ ATENÇÃO: IP address não fornecido - pode causar problemas no 3DS");
+    }
+    
+    // Garante que todos os campos obrigatórios estão presentes
+    const deviceInfo: DeviceInfo = {
       user_agent: userAgent,
-      ip_address: ipAddress,
+      ip_address: finalIpAddress,
       // Formato Pagsmile (browser_*)
-      browser_language: browserLanguage,
-      browser_color_depth: browserColorDepth,
-      browser_screen_height: browserScreenHeight,
-      browser_screen_width: browserScreenWidth,
-      browser_time_zone: browserTimeZone,
+      browser_language: browserLanguage || "pt-BR",
+      browser_color_depth: browserColorDepth || "24",
+      browser_screen_height: browserScreenHeight || "1080",
+      browser_screen_width: browserScreenWidth || "1920",
+      browser_time_zone: browserTimeZone || "180",
       // Formato A55 (http_browser_*) - para compatibilidade
-      http_browser_language: browserLanguage,
-      http_browser_color_depth: browserColorDepth,
-      http_browser_screen_height: browserScreenHeight,
-      http_browser_screen_width: browserScreenWidth,
-      http_browser_time_difference: browserTimeZone,
+      http_browser_language: browserLanguage || "pt-BR",
+      http_browser_color_depth: browserColorDepth || "24",
+      http_browser_screen_height: browserScreenHeight || "1080",
+      http_browser_screen_width: browserScreenWidth || "1920",
+      http_browser_time_difference: browserTimeZone || "180",
       http_accept_content: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
       http_browser_java_enabled: false,
       http_browser_javascript_enabled: true,
     };
+    
+    request.device_info = deviceInfo;
+    
     console.log("🔒 Device info COMPLETO incluído para validação 3DS/antifraude:", {
       user_agent: userAgent.substring(0, 50) + "...",
-      ip_address: ipAddress || "não fornecido",
-      browser_language: browserLanguage,
-      browser_color_depth: browserColorDepth,
-      screen_resolution: `${browserScreenWidth}x${browserScreenHeight}`,
-      time_zone: browserTimeZone,
+      ip_address: finalIpAddress || "⚠️ NÃO FORNECIDO",
+      browser_language: deviceInfo.browser_language,
+      browser_color_depth: deviceInfo.browser_color_depth,
+      screen_resolution: `${deviceInfo.browser_screen_width}x${deviceInfo.browser_screen_height}`,
+      time_zone: deviceInfo.browser_time_zone,
       formats: "browser_* + http_browser_* (compatibilidade Pagsmile + A55)",
     });
   } else {
     console.log("⚠️ ATENÇÃO: device_info não foi incluído (userAgent ausente)");
+    console.log("⚠️ Isso pode causar falha na autenticação 3DS!");
   }
 
   return request;
