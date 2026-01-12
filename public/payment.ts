@@ -192,7 +192,21 @@ const submitPayment = async (
     },
   };
 
-  return client.createOrder(paymentData);
+  try {
+    console.log("💳 Enviando pagamento para SDK...");
+    const result = await client.createOrder(paymentData);
+    console.log("📥 Resposta do SDK:", result);
+    return result;
+  } catch (error) {
+    console.error("❌ Erro ao enviar pagamento:", error);
+    // Se o erro ocorrer após o 3DS, ainda precisamos verificar o status
+    // Retorna um resultado que força a verificação do status mesmo em caso de erro
+    return {
+      status: "error",
+      query: true, // Força a verificação do status mesmo em caso de erro
+      message: error instanceof Error ? error.message : "Erro desconhecido",
+    };
+  }
 };
 
 interface TransactionQueryResponse {
@@ -201,24 +215,52 @@ interface TransactionQueryResponse {
 
 const pollTransactionStatus = async (
   tradeNo: string,
-  maxAttempts = 10,
+  maxAttempts = 15, // Aumenta para 15 tentativas (30 segundos)
   intervalMs = 2000
 ): Promise<string> => {
+  console.log(`🔄 Iniciando polling para trade_no: ${tradeNo}`);
+  
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
-    const response = await fetch(`/api/query-transaction/${tradeNo}`);
-    const data = (await response.json()) as TransactionQueryResponse;
+    try {
+      console.log(`📡 Tentativa ${attempt + 1}/${maxAttempts} - Consultando status...`);
+      const response = await fetch(`/api/query-transaction/${tradeNo}`);
+      
+      if (!response.ok) {
+        console.error(`❌ Erro HTTP: ${response.status}`);
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        continue;
+      }
+      
+      const data = (await response.json()) as TransactionQueryResponse;
+      console.log(`📥 Status recebido: ${data.trade_status}`);
 
-    if (data.trade_status === "SUCCESS") {
-      return "SUCCESS";
+      if (data.trade_status === "SUCCESS") {
+        console.log("✅ Pagamento aprovado!");
+        return "SUCCESS";
+      }
+
+      if (data.trade_status === "FAILED" || data.trade_status === "CANCELLED") {
+        console.log(`❌ Pagamento ${data.trade_status}`);
+        return data.trade_status;
+      }
+
+      // Se ainda está PENDING, continua tentando
+      if (data.trade_status === "PENDING") {
+        console.log("⏳ Status ainda PENDING, aguardando...");
+        await new Promise((resolve) => setTimeout(resolve, intervalMs));
+        continue;
+      }
+
+      // Status desconhecido, aguarda e tenta novamente
+      console.log(`⚠️ Status desconhecido: ${data.trade_status}`);
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    } catch (error) {
+      console.error(`❌ Erro na tentativa ${attempt + 1}:`, error);
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
     }
-
-    if (data.trade_status === "FAILED" || data.trade_status === "CANCELLED") {
-      return data.trade_status;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, intervalMs));
   }
 
+  console.log("⏱️ Timeout após todas as tentativas");
   return "TIMEOUT";
 };
 
@@ -238,14 +280,36 @@ const handlePaymentSubmit = async (event: Event): Promise<void> => {
       throw new Error(orderResponse.error ?? "Falha ao criar pedido");
     }
 
+    if (!orderResponse.trade_no) {
+      throw new Error("trade_no não retornado pelo backend");
+    }
+
     showStatus("processing", "Inicializando pagamento...");
     const pagsmileClient = await initializePagsmileSdk(sdkConfig, orderResponse.prepay_id);
 
     showStatus("processing", "Processando pagamento...");
-    const paymentResult = await submitPayment(pagsmileClient, customerInfo, installments);
+    let paymentResult: PaymentResult;
+    
+    try {
+      paymentResult = await submitPayment(pagsmileClient, customerInfo, installments);
+      console.log("✅ Resultado do pagamento:", paymentResult);
+    } catch (error) {
+      console.error("❌ Erro durante submitPayment:", error);
+      // Mesmo com erro, tenta verificar o status (pode ter sido aprovado no 3DS)
+      paymentResult = {
+        status: "error",
+        query: true,
+        message: error instanceof Error ? error.message : "Erro durante processamento",
+      };
+    }
 
-    if (paymentResult.status === "success" && paymentResult.query && orderResponse.trade_no) {
-      showStatus("processing", "Verificando status do pagamento...");
+    // Se precisa verificar status OU se houve erro mas temos trade_no
+    if ((paymentResult.query || paymentResult.status === "error") && orderResponse.trade_no) {
+      showStatus("processing", "Aguardando confirmação do pagamento...");
+      
+      // Aguarda um pouco antes de começar a verificar (3DS pode estar processando)
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      
       const finalStatus = await pollTransactionStatus(orderResponse.trade_no);
 
       if (finalStatus === "SUCCESS") {
@@ -253,8 +317,10 @@ const handlePaymentSubmit = async (event: Event): Promise<void> => {
         elements.form.reset();
       } else if (finalStatus === "TIMEOUT") {
         showStatus("processing", "Pagamento em processamento. Verifique seu e-mail para confirmação.");
+      } else if (finalStatus === "PENDING") {
+        showStatus("processing", "Pagamento ainda em processamento. Aguarde...");
       } else {
-        showStatus("error", `Pagamento ${finalStatus.toLowerCase()}. Tente novamente.`);
+        showStatus("error", `Pagamento ${finalStatus.toLowerCase()}. ${paymentResult.message || ""}`);
       }
     } else if (paymentResult.status === "success") {
       showStatus("success", "Pagamento realizado com sucesso!");
