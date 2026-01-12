@@ -88,17 +88,20 @@ const buildOrderRequest = (
     },
   };
 
+  // Garante que IP está presente e válido
+  const finalIpAddress = ipAddress && ipAddress !== "unknown" && ipAddress.trim() !== ""
+    ? ipAddress.trim()
+    : undefined;
+
+  // user_ip é obrigatório no nível raiz do request para 3DS funcionar
+  if (finalIpAddress) {
+    request.user_ip = finalIpAddress;
+  } else {
+    console.log("⚠️ ATENÇÃO: user_ip não fornecido - OBRIGATÓRIO para 3DS em produção!");
+  }
+
   // Adiciona device_info se userAgent estiver presente
   if (userAgent) {
-    // Garante que IP está presente e válido
-    const finalIpAddress = ipAddress && ipAddress !== "unknown" && ipAddress.trim() !== "" 
-      ? ipAddress.trim() 
-      : undefined;
-    
-    if (!finalIpAddress) {
-      console.log("⚠️ ATENÇÃO: IP address não fornecido - pode causar problemas no 3DS");
-    }
-    
     // Garante que todos os campos obrigatórios estão presentes
     const deviceInfo: DeviceInfo = {
       user_agent: userAgent,
@@ -119,17 +122,16 @@ const buildOrderRequest = (
       http_browser_java_enabled: false,
       http_browser_javascript_enabled: true,
     };
-    
+
     request.device_info = deviceInfo;
-    
+
     console.log("🔒 Device info COMPLETO incluído para validação 3DS/antifraude:", {
       user_agent: userAgent.substring(0, 50) + "...",
-      ip_address: finalIpAddress || "⚠️ NÃO FORNECIDO",
+      user_ip: finalIpAddress || "⚠️ NÃO FORNECIDO",
       browser_language: deviceInfo.browser_language,
       browser_color_depth: deviceInfo.browser_color_depth,
       screen_resolution: `${deviceInfo.browser_screen_width}x${deviceInfo.browser_screen_height}`,
       time_zone: deviceInfo.browser_time_zone,
-      formats: "browser_* + http_browser_* (compatibilidade Pagsmile + A55)",
     });
   } else {
     console.log("⚠️ ATENÇÃO: device_info não foi incluído (userAgent ausente)");

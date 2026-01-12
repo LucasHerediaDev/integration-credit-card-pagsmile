@@ -78,6 +78,7 @@ export interface CreateOrderRequest {
   buyer_id: string;
   customer: Customer;
   address: Address;
+  user_ip?: string;
   device_info?: DeviceInfo;
 }
 
