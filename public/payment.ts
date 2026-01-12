@@ -142,8 +142,11 @@ const createBackendOrder = async (
 ): Promise<CreateOrderResponse> => {
   const deviceInfo = getDeviceInfo();
   
-  // Usa a URL atual como return_url para que o 3DS possa retornar corretamente
+  // Para o SDK, não precisamos de return_url pois ele gerencia o 3DS internamente
+  // Usamos uma URL vazia ou a URL atual sem parâmetros
   const returnUrl = window.location.origin + window.location.pathname;
+  
+  console.log("📤 Criando pedido no backend com returnUrl:", returnUrl);
   
   const response = await fetch("/api/create-order", {
     method: "POST",
@@ -155,6 +158,11 @@ const createBackendOrder = async (
       ...deviceInfo,
     }),
   });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+  }
 
   return response.json() as Promise<CreateOrderResponse>;
 };
@@ -198,11 +206,30 @@ const submitPayment = async (
 
   try {
     console.log("💳 Enviando pagamento para SDK...");
-    const result = await client.createOrder(paymentData);
-    console.log("📥 Resposta do SDK:", result);
+    console.log("📋 Dados do pagamento:", {
+      email: paymentData.email,
+      phone: paymentData.phone,
+      postal_code: paymentData.postal_code,
+      payer_id: paymentData.payer_id,
+      installments: paymentData.installments?.stage,
+    });
+    
+    // Adiciona timeout para evitar que fique travado
+    const timeoutPromise = new Promise<PaymentResult>((_, reject) => {
+      setTimeout(() => reject(new Error("Timeout ao processar pagamento (60s)")), 60000);
+    });
+    
+    const result = await Promise.race([
+      client.createOrder(paymentData),
+      timeoutPromise,
+    ]);
+    
+    console.log("📥 Resposta completa do SDK:", JSON.stringify(result, null, 2));
     return result;
   } catch (error) {
-    console.error("❌ Erro ao enviar pagamento:", error);
+    console.error("❌ Erro detalhado ao enviar pagamento:", error);
+    console.error("❌ Stack trace:", error instanceof Error ? error.stack : "N/A");
+    
     // Se o erro ocorrer após o 3DS, ainda precisamos verificar o status
     // Retorna um resultado que força a verificação do status mesmo em caso de erro
     return {
@@ -296,9 +323,12 @@ const handlePaymentSubmit = async (event: Event): Promise<void> => {
     
     try {
       paymentResult = await submitPayment(pagsmileClient, customerInfo, installments);
-      console.log("✅ Resultado do pagamento:", paymentResult);
+      console.log("✅ Resultado do pagamento recebido:", JSON.stringify(paymentResult, null, 2));
     } catch (error) {
       console.error("❌ Erro durante submitPayment:", error);
+      console.error("❌ Tipo do erro:", typeof error);
+      console.error("❌ Erro completo:", error);
+      
       // Mesmo com erro, tenta verificar o status (pode ter sido aprovado no 3DS)
       paymentResult = {
         status: "error",
@@ -306,14 +336,24 @@ const handlePaymentSubmit = async (event: Event): Promise<void> => {
         message: error instanceof Error ? error.message : "Erro durante processamento",
       };
     }
+    
+    console.log("🔍 Análise do resultado:", {
+      status: paymentResult.status,
+      query: paymentResult.query,
+      message: paymentResult.message,
+      trade_no: orderResponse.trade_no,
+    });
 
     // Se precisa verificar status OU se houve erro mas temos trade_no
     if ((paymentResult.query || paymentResult.status === "error") && orderResponse.trade_no) {
       showStatus("processing", "Aguardando confirmação do pagamento...");
       
-      // Aguarda um pouco antes de começar a verificar (3DS pode estar processando)
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Aguarda mais tempo antes de começar a verificar (3DS pode estar processando)
+      // O 3DS pode levar alguns segundos para processar e atualizar o status
+      console.log("⏳ Aguardando 5 segundos antes de verificar status (3DS pode estar processando)...");
+      await new Promise((resolve) => setTimeout(resolve, 5000));
       
+      console.log("🔍 Iniciando verificação de status para trade_no:", orderResponse.trade_no);
       const finalStatus = await pollTransactionStatus(orderResponse.trade_no);
 
       if (finalStatus === "SUCCESS") {
