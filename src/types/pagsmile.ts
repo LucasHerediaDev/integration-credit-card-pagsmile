@@ -135,6 +135,7 @@ export interface CustomerInfo {
 export interface CreatePaymentInput {
   amount: string;
   customerInfo: CustomerInfo;
+  returnUrl?: string; // URL atual da página para callback do 3DS
   userAgent?: string;
   ipAddress?: string;
   browserLanguage?: string;

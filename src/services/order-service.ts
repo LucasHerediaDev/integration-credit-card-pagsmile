@@ -40,6 +40,7 @@ const buildOrderRequest = (
   const { 
     amount, 
     customerInfo, 
+    returnUrl,
     userAgent, 
     ipAddress,
     browserLanguage,
@@ -48,6 +49,10 @@ const buildOrderRequest = (
     browserScreenWidth,
     browserTimeZone,
   } = input;
+
+  // Usa o returnUrl do frontend se fornecido (URL atual da página),
+  // caso contrário usa o da configuração
+  const finalReturnUrl = returnUrl || config.returnUrl;
 
   const request: CreateOrderRequest = {
     app_id: config.appId,
@@ -60,7 +65,7 @@ const buildOrderRequest = (
     trade_type: "API",
     timestamp: formatTimestamp(),
     notify_url: config.notifyUrl,
-    return_url: config.returnUrl,
+    return_url: finalReturnUrl,
     timeout_express: "1d",
     version: "2.0",
     buyer_id: customerInfo.email,
@@ -183,6 +188,8 @@ export const createOrderService = (
       method: orderRequest.method,
       customer_email: orderRequest.customer.email,
       customer_cpf: orderRequest.customer.identify.number,
+      return_url: orderRequest.return_url,
+      notify_url: orderRequest.notify_url,
     });
     
     console.log("🌐 Enviando requisição para Pagsmile API...");

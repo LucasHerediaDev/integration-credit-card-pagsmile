@@ -142,12 +142,16 @@ const createBackendOrder = async (
 ): Promise<CreateOrderResponse> => {
   const deviceInfo = getDeviceInfo();
   
+  // Usa a URL atual como return_url para que o 3DS possa retornar corretamente
+  const returnUrl = window.location.origin + window.location.pathname;
+  
   const response = await fetch("/api/create-order", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ 
       amount, 
       customerInfo,
+      returnUrl, // Envia a URL atual para o backend usar como return_url
       ...deviceInfo,
     }),
   });
@@ -338,3 +342,50 @@ const handlePaymentSubmit = async (event: Event): Promise<void> => {
 };
 
 elements.form.addEventListener("submit", handlePaymentSubmit);
+
+// Verifica se há parâmetros de callback do 3DS na URL
+const check3DSCallback = (): void => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const tradeNo = urlParams.get("trade_no");
+  const status = urlParams.get("status");
+  
+  if (tradeNo || status) {
+    console.log("🔄 Callback do 3DS detectado na URL:", { tradeNo, status });
+    
+    // Se há trade_no, verifica o status da transação
+    if (tradeNo) {
+      showLoading(true);
+      showStatus("processing", "Verificando status do pagamento...");
+      
+      pollTransactionStatus(tradeNo)
+        .then((finalStatus) => {
+          if (finalStatus === "SUCCESS") {
+            showStatus("success", "Pagamento realizado com sucesso!");
+            elements.form.reset();
+          } else if (finalStatus === "TIMEOUT") {
+            showStatus("processing", "Pagamento em processamento. Verifique seu e-mail para confirmação.");
+          } else if (finalStatus === "PENDING") {
+            showStatus("processing", "Pagamento ainda em processamento. Aguarde...");
+          } else {
+            showStatus("error", `Pagamento ${finalStatus.toLowerCase()}. Tente novamente.`);
+          }
+        })
+        .catch((error) => {
+          console.error("Erro ao verificar status:", error);
+          showStatus("error", "Erro ao verificar status do pagamento.");
+        })
+        .finally(() => {
+          showLoading(false);
+          // Remove os parâmetros da URL para limpar
+          window.history.replaceState({}, document.title, window.location.pathname);
+        });
+    }
+  }
+};
+
+// Executa quando a página carrega
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", check3DSCallback);
+} else {
+  check3DSCallback();
+}
